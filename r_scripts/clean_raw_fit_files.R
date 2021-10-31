@@ -3,17 +3,38 @@ library(ggplot2)
 library(stringr)
 library(lubridate)
 
+## postgres db libraries
+library(DBI)
+library(tidyr)
+library(odbc)
+
+## set up post gres connections
+source("/Users/hanson377/Desktop/script_parameters/postgres_keys.R")
+
+con <- DBI::dbConnect(odbc::odbc(),
+  driver = "PostgreSQL Driver",
+  database = "garmin_data",
+  UID    = pg_name,
+  PWD    = pg_password,
+  host = pg_host,
+  port = pg_port)
+
 
 ## pull in all csv files
 
-files_to_import <- data.frame(files = list.files(path = "/Users/hanson377/Desktop/garmin/data")) ## detect raw fit files in data directory
-files_to_import <- files_to_import %>% filter(str_detect(files,"csv")) ## filter out old csvs, only look at fit files
-files_to_import <- files_to_import$files
+files_to_import <- data.frame(filename = list.files(path = "/Users/hanson377/Desktop/garmin/data")) ## detect raw fit files in data directory
+files_to_import <- files_to_import %>% filter(str_detect(filename,"csv")) ## filter out old csvs, only look at fit files
 
-##
+## identify files not already in data warehouse
+files_in_db <- dbGetQuery(con, "SELECT distinct filename FROM running_data")
+
+files_to_import <- files_to_import %>% anti_join(files_in_db,by='filename')
+files_to_import <- files_to_import$filename ## convert to list for loop below
+
+## run loop
 
 df <- NA
-for (i in files_to_import) { ## run loop to convert fit files to csv via the fit sdk offered by garmin
+for (i in files_to_import) {
 
 string <- paste('/Users/hanson377/Desktop/garmin/data/',i,sep='')
 temp_df <- read.csv(string)
@@ -109,3 +130,13 @@ final_df <- final_df %>%
       mutate(time_s = difftime(timestamp, lag(timestamp), units = "secs"))
 
 final_df$time_s <- as.numeric(final_df$time_s)
+
+
+
+
+  ## drop old table, create new one
+  #dbExecute(con,"DROP TABLE state_labor_participation_rate;")
+  dbWriteTable(con, "running_data", final_df, append = TRUE,row.names =FALSE)
+
+  ## test that data is live
+  data_test <- dbGetQuery(con, "SELECT * FROM running_data")
