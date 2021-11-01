@@ -134,9 +134,8 @@ final_df$time_s <- as.numeric(final_df$time_s)
 
 
 
-  ## drop old table, create new one
-  #dbExecute(con,"DROP TABLE state_labor_participation_rate;")
-  dbWriteTable(con, "running_data", final_df, append = TRUE,row.names =FALSE)
+# append this data to table
+dbWriteTable(con, "running_data", final_df, append = TRUE,row.names =FALSE)
 
-  ## test that data is live
-  data_test <- dbGetQuery(con, "SELECT * FROM running_data")
+## test that data is live
+data_test <- dbGetQuery(con, "SELECT * FROM running_data")
